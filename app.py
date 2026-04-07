@@ -26,48 +26,42 @@ async def slack_events(request: Request):
 
         clean_text = user_text.split(" ", 1)[-1] if " " in user_text else user_text
 
-        # 1. Get Config
-        ollama_url = os.environ.get("OLLAMA_BASE_URL", "").rstrip("/")
-        ollama_key = os.environ.get("OLLAMA_API_KEY", "")
-        model_name = "gemma4:31b-cloud"
+        # 1. Get the Key
+        # We use OPENROUTER_API_KEY
+        api_key = os.environ.get("OPENROUTER_API_KEY", "")
 
-        # DEBUG: Print if key is missing (Visible in Northflank Logs)
-        if not ollama_key:
-            print("ERROR: OLLAMA_API_KEY environment variable is EMPTY!")
-            reply = "Server configuration error: API Key missing."
-        else:
-            provider_str = f"custom:{ollama_url}/v1"
+        # 2. Define the model
+        # OpenRouter model names usually look like: google/gemma-2-9b-it
+        # You can pick any model from openrouter.ai/models
+        model_name = "openrouter/free" 
 
-            try:
-                # 2. Prepare Environment
-                # We set all likely variable names to ensure one works
-                run_env = os.environ.copy()
-                run_env["CUSTOM_API_KEY"] = ollama_key
-                run_env["OPENAI_API_KEY"] = ollama_key
-                run_env["API_KEY"] = ollama_key 
+        try:
+            # 3. Prepare Environment
+            run_env = os.environ.copy()
+            run_env["OPENROUTER_API_KEY"] = api_key
 
-                # 3. Run ZeroClaw
-                result = subprocess.run(
-                    [
-                        "zeroclaw", "agent", 
-                        "-p", provider_str, 
-                        "--model", model_name, 
-                        "-m", clean_text
-                    ],
-                    capture_output=True,
-                    text=True,
-                    env=run_env
-                )
+            # 4. Run ZeroClaw with OpenRouter provider
+            result = subprocess.run(
+                [
+                    "zeroclaw", "agent", 
+                    "-p", "openrouter",      # Use openrouter provider
+                    "--model", model_name, 
+                    "-m", clean_text
+                ],
+                capture_output=True,
+                text=True,
+                env=run_env
+            )
 
-                if result.returncode != 0:
-                    print(f"ZeroClaw Error: {result.stderr}")
-                    reply = f"Error: {result.stderr.strip()}"
-                else:
-                    reply = result.stdout.strip() or "No response."
-                    
-            except Exception as e:
-                print(f"Exception: {str(e)}")
-                reply = "Failed to execute ZeroClaw."
+            if result.returncode != 0:
+                print(f"ZeroClaw Error: {result.stderr}")
+                reply = f"Error: {result.stderr.strip()}"
+            else:
+                reply = result.stdout.strip() or "No response."
+                
+        except Exception as e:
+            print(f"Exception: {str(e)}")
+            reply = "Failed to execute ZeroClaw."
 
         slack.chat_postMessage(
             channel=channel,
