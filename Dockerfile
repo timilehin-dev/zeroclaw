@@ -2,13 +2,14 @@ FROM python:3.11
 
 WORKDIR /app
 
-# Install system dependencies: curl, git, sudo, and unzip
-# sudo is often required by install scripts even if running as root
+# Install system dependencies
+# 'jq' is likely the missing command causing exit code 127
 RUN apt-get update && apt-get install -y \
     curl \
     git \
     unzip \
     sudo \
+    jq \
     && rm -rf /var/lib/apt/lists/*
 
 # Install ZeroClaw
