@@ -29,41 +29,45 @@ async def slack_events(request: Request):
         # 1. Get Config
         ollama_url = os.environ.get("OLLAMA_BASE_URL", "").rstrip("/")
         ollama_key = os.environ.get("OLLAMA_API_KEY", "")
-        model_name = "gemma4:31b-cloud" 
+        model_name = "gemma4:31b-cloud"
 
-        # 2. Construct Provider String
-        provider_str = f"custom:{ollama_url}/v1"
+        # DEBUG: Print if key is missing (Visible in Northflank Logs)
+        if not ollama_key:
+            print("ERROR: OLLAMA_API_KEY environment variable is EMPTY!")
+            reply = "Server configuration error: API Key missing."
+        else:
+            provider_str = f"custom:{ollama_url}/v1"
 
-        try:
-            # 3. Prepare Environment
-            # We map the key to OPENAI_API_KEY (most common for custom endpoints)
-            # AND CUSTOM_API_KEY just to be safe.
-            run_env = os.environ.copy()
-            run_env["OPENAI_API_KEY"] = ollama_key
-            run_env["CUSTOM_API_KEY"] = ollama_key
+            try:
+                # 2. Prepare Environment
+                # We set all likely variable names to ensure one works
+                run_env = os.environ.copy()
+                run_env["CUSTOM_API_KEY"] = ollama_key
+                run_env["OPENAI_API_KEY"] = ollama_key
+                run_env["API_KEY"] = ollama_key 
 
-            # 4. Run ZeroClaw
-            result = subprocess.run(
-                [
-                    "zeroclaw", "agent", 
-                    "-p", provider_str, 
-                    "--model", model_name, 
-                    "-m", clean_text
-                ],
-                capture_output=True,
-                text=True,
-                env=run_env
-            )
+                # 3. Run ZeroClaw
+                result = subprocess.run(
+                    [
+                        "zeroclaw", "agent", 
+                        "-p", provider_str, 
+                        "--model", model_name, 
+                        "-m", clean_text
+                    ],
+                    capture_output=True,
+                    text=True,
+                    env=run_env
+                )
 
-            if result.returncode != 0:
-                print(f"ZeroClaw Error: {result.stderr}")
-                reply = f"Error: {result.stderr.strip()}"
-            else:
-                reply = result.stdout.strip() or "No response."
-                
-        except Exception as e:
-            print(f"Exception: {str(e)}")
-            reply = "Failed to execute ZeroClaw."
+                if result.returncode != 0:
+                    print(f"ZeroClaw Error: {result.stderr}")
+                    reply = f"Error: {result.stderr.strip()}"
+                else:
+                    reply = result.stdout.strip() or "No response."
+                    
+            except Exception as e:
+                print(f"Exception: {str(e)}")
+                reply = "Failed to execute ZeroClaw."
 
         slack.chat_postMessage(
             channel=channel,
