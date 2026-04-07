@@ -1,13 +1,18 @@
-FROM ghcr.io/zeroclaw-labs/zeroclaw:latest
+FROM python:3.11-slim
 
 WORKDIR /app
 
-# Install Python and pip
-RUN apt-get update && apt-get install -y python3 python3-pip
+# Install system tools
+RUN apt-get update && apt-get install -y curl
 
-# Install required Python packages
-RUN pip3 install fastapi uvicorn slack_sdk
+# Install ZeroClaw
+RUN curl -sSL https://raw.githubusercontent.com/zeroclaw-labs/zeroclaw/main/install.sh | bash
 
+# Install Python dependencies
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Copy your app
 COPY app.py .
 
 EXPOSE 8080
