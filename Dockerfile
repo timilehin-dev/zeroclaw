@@ -1,12 +1,14 @@
-FROM python:3.11-slim
+FROM python:3.11
 
 WORKDIR /app
 
-# Install system tools (Added 'unzip' and 'git' to fix exit code 127)
+# Install system dependencies: curl, git, sudo, and unzip
+# sudo is often required by install scripts even if running as root
 RUN apt-get update && apt-get install -y \
     curl \
-    unzip \
     git \
+    unzip \
+    sudo \
     && rm -rf /var/lib/apt/lists/*
 
 # Install ZeroClaw
