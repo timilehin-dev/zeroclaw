@@ -26,17 +26,16 @@ async def slack_events(request: Request):
         user_text = event.get("text", "")
         channel = event.get("channel")
 
-        # Clean text (remove the bot mention prefix if present)
+        # Clean text (remove the bot mention prefix)
         clean_text = user_text.split(" ", 1)[-1] if " " in user_text else user_text
 
         try:
-            # Run ZeroClaw
-            # env=os.environ is CRITICAL so it inherits OLLAMA_BASE_URL and API_KEY
+            # UPDATED COMMAND: Use 'agent' with '-m' for single message mode
             result = subprocess.run(
-                ["zeroclaw", "run", clean_text],
+                ["zeroclaw", "agent", "-m", clean_text],
                 capture_output=True,
                 text=True,
-                env=os.environ
+                env=os.environ  # Passes OLLAMA_BASE_URL and API_KEY
             )
 
             if result.returncode != 0:
