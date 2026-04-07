@@ -29,7 +29,6 @@ async def slack_events(request: Request):
         # 1. Get Config
         ollama_url = os.environ.get("OLLAMA_BASE_URL", "").rstrip("/")
         ollama_key = os.environ.get("OLLAMA_API_KEY", "")
-        # The model you want to use
         model_name = "gemma4:31b-cloud" 
 
         # 2. Construct Provider String
@@ -37,11 +36,13 @@ async def slack_events(request: Request):
 
         try:
             # 3. Prepare Environment
-            # "custom" provider looks for "CUSTOM_API_KEY"
+            # We map the key to OPENAI_API_KEY (most common for custom endpoints)
+            # AND CUSTOM_API_KEY just to be safe.
             run_env = os.environ.copy()
+            run_env["OPENAI_API_KEY"] = ollama_key
             run_env["CUSTOM_API_KEY"] = ollama_key
 
-            # 4. Run ZeroClaw with explicit Model and Provider
+            # 4. Run ZeroClaw
             result = subprocess.run(
                 [
                     "zeroclaw", "agent", 
