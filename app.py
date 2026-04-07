@@ -6,7 +6,6 @@ from slack_sdk import WebClient
 app = FastAPI()
 
 # Initialize Slack Client
-# Ensure SLACK_BOT_TOKEN is set in Northflank Environment Variables
 slack = WebClient(token=os.environ.get("SLACK_BOT_TOKEN"))
 
 @app.get("/")
@@ -27,27 +26,28 @@ async def slack_events(request: Request):
         user_text = event.get("text", "")
         channel = event.get("channel")
 
-        # Prepare the command
-        # We use shell=True to ensure the 'zeroclaw' command is found in PATH
-        # We pass the current environment so OLLAMA keys are accessible to the tool
+        # Clean text (remove the bot mention prefix if present)
+        clean_text = user_text.split(" ", 1)[-1] if " " in user_text else user_text
+
         try:
+            # Run ZeroClaw
+            # env=os.environ is CRITICAL so it inherits OLLAMA_BASE_URL and API_KEY
             result = subprocess.run(
-                f'zeroclaw run "{user_text}"',
-                shell=True,
+                ["zeroclaw", "run", clean_text],
                 capture_output=True,
                 text=True,
                 env=os.environ
             )
-            
-            # Log errors if any
+
             if result.returncode != 0:
                 print(f"ZeroClaw Error: {result.stderr}")
-                reply = f"Error running ZeroClaw: {result.stderr}"
+                reply = f"Error: {result.stderr.strip()}"
             else:
-                reply = result.stdout.strip() or "No response generated."
+                reply = result.stdout.strip() or "No response."
                 
         except Exception as e:
-            reply = f"Failed to execute command: {str(e)}"
+            print(f"Exception: {str(e)}")
+            reply = "Failed to execute ZeroClaw."
 
         # Post reply to Slack
         slack.chat_postMessage(
