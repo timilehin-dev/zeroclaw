@@ -2,11 +2,13 @@ FROM ghcr.io/zeroclaw-labs/zeroclaw:latest
 
 WORKDIR /app
 
-# Install Python tools
-RUN pip install fastapi uvicorn slack_sdk
+# Install Python and pip
+RUN apt-get update && apt-get install -y python3 python3-pip
+
+# Install required Python packages
+RUN pip3 install fastapi uvicorn slack_sdk
 
 COPY app.py .
-COPY requirements.txt .
 
 EXPOSE 8080
 
