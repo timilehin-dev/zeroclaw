@@ -26,25 +26,29 @@ async def slack_events(request: Request):
 
         clean_text = user_text.split(" ", 1)[-1] if " " in user_text else user_text
 
-        # 1. Get your Ollama URL and Key from environment
+        # 1. Get Config
         ollama_url = os.environ.get("OLLAMA_BASE_URL", "").rstrip("/")
         ollama_key = os.environ.get("OLLAMA_API_KEY", "")
+        # The model you want to use
+        model_name = "gemma4:31b-cloud" 
 
-        # 2. Construct the provider string
-        # We use 'custom:<URL>/v1' for OpenAI-compatible endpoints (like Ollama Cloud)
-        # Ensure the URL ends with /v1 for the OpenAI API standard
+        # 2. Construct Provider String
         provider_str = f"custom:{ollama_url}/v1"
 
         try:
-            # 3. Prepare environment for the subprocess
-            # We map OLLAMA_API_KEY to OPENAI_API_KEY so the 'custom' provider picks it up
+            # 3. Prepare Environment
+            # "custom" provider looks for "CUSTOM_API_KEY"
             run_env = os.environ.copy()
-            run_env["OPENAI_API_KEY"] = ollama_key
+            run_env["CUSTOM_API_KEY"] = ollama_key
 
-            # 4. Run ZeroClaw
-            # We use the custom provider string
+            # 4. Run ZeroClaw with explicit Model and Provider
             result = subprocess.run(
-                ["zeroclaw", "agent", "-p", provider_str, "-m", clean_text],
+                [
+                    "zeroclaw", "agent", 
+                    "-p", provider_str, 
+                    "--model", model_name, 
+                    "-m", clean_text
+                ],
                 capture_output=True,
                 text=True,
                 env=run_env
