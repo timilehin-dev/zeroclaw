@@ -9,24 +9,36 @@ app = FastAPI()
 slack = WebClient(token=os.environ.get("SLACK_BOT_TOKEN"))
 
 def clean_zeroclaw_output(text):
-    # 1. Remove ANSI color codes (the [32m, [0m stuff)
-    # This regex finds escape sequences and removes them
+    # Remove ANSI color codes
     ansi_escape = re.compile(r'\x1b\[[0-9;]*m')
     text = ansi_escape.sub('', text)
     
-    # 2. Remove lines that look like system logs
-    # Logs usually contain " INFO ", " WARN ", or start with a timestamp
+    # Remove system log lines
     lines = text.split('\n')
     clean_lines = []
     for line in lines:
         if " INFO " in line or " WARN " in line or " ERROR " in line:
             continue
-        # Also skip lines that are purely config/initialization logs
         if "Config loaded" in line or "Memory initialized" in line:
             continue
         clean_lines.append(line)
     
     return "\n".join(clean_lines).strip()
+
+def format_for_slack(text):
+    # Convert Markdown to Slack's "mrkdwn" format
+    
+    # 1. Headers (# Header) -> Bold (*Header*)
+    text = re.sub(r'^#+\s*(.*)', r'*\1*', text, flags=re.MULTILINE)
+    
+    # 2. Bold (**text**) -> Slack Bold (*text*)
+    text = re.sub(r'\*\*(.+?)\*\*', r'*\1*', text)
+    
+    # 3. Italic (*text*) -> Slack Italic (_text_)
+    # We look for single asterisks surrounded by spaces or start/end of line to avoid messing up bold text
+    text = re.sub(r'(?<!\*)\*(?!\*)(.+?)(?<!\*)\*(?!\*)', r'_\1_', text)
+    
+    return text
 
 @app.get("/")
 def home():
@@ -48,7 +60,6 @@ async def slack_events(request: Request):
         clean_text = user_text.split(" ", 1)[-1] if " " in user_text else user_text
 
         api_key = os.environ.get("OPENROUTER_API_KEY", "")
-        # Using a good Gemma model available on OpenRouter
         model_name = "openrouter/free" 
 
         try:
@@ -67,20 +78,23 @@ async def slack_events(request: Request):
                 env=run_env
             )
 
-            # Combine stdout and stderr, then clean
+            # Combine and clean
             raw_output = result.stdout.strip() + "\n" + result.stderr.strip()
-            reply = clean_zeroclaw_output(raw_output)
+            clean_reply = clean_zeroclaw_output(raw_output)
+            
+            # Format for Slack
+            formatted_reply = format_for_slack(clean_reply)
 
-            if not reply:
-                reply = "No response."
+            if not formatted_reply:
+                formatted_reply = "No response."
                 
         except Exception as e:
             print(f"Exception: {str(e)}")
-            reply = "Failed to execute ZeroClaw."
+            formatted_reply = "Failed to execute ZeroClaw."
 
         slack.chat_postMessage(
             channel=channel,
-            text=reply
+            text=formatted_reply
         )
 
     return {"ok": True}
