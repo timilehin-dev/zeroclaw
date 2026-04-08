@@ -49,7 +49,7 @@ async def slack_events(request: Request):
 
         api_key = os.environ.get("OPENROUTER_API_KEY", "")
         # Using a good Gemma model available on OpenRouter
-        model_name = "google/gemma-2-9b-it" 
+        model_name = "openrouter/free" 
 
         try:
             run_env = os.environ.copy()
