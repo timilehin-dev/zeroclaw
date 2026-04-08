@@ -1,11 +1,32 @@
 import os
 import subprocess
+import re
 from fastapi import FastAPI, Request
 from slack_sdk import WebClient
 
 app = FastAPI()
 
 slack = WebClient(token=os.environ.get("SLACK_BOT_TOKEN"))
+
+def clean_zeroclaw_output(text):
+    # 1. Remove ANSI color codes (the [32m, [0m stuff)
+    # This regex finds escape sequences and removes them
+    ansi_escape = re.compile(r'\x1b\[[0-9;]*m')
+    text = ansi_escape.sub('', text)
+    
+    # 2. Remove lines that look like system logs
+    # Logs usually contain " INFO ", " WARN ", or start with a timestamp
+    lines = text.split('\n')
+    clean_lines = []
+    for line in lines:
+        if " INFO " in line or " WARN " in line or " ERROR " in line:
+            continue
+        # Also skip lines that are purely config/initialization logs
+        if "Config loaded" in line or "Memory initialized" in line:
+            continue
+        clean_lines.append(line)
+    
+    return "\n".join(clean_lines).strip()
 
 @app.get("/")
 def home():
@@ -26,25 +47,18 @@ async def slack_events(request: Request):
 
         clean_text = user_text.split(" ", 1)[-1] if " " in user_text else user_text
 
-        # 1. Get the Key
-        # We use OPENROUTER_API_KEY
         api_key = os.environ.get("OPENROUTER_API_KEY", "")
-
-        # 2. Define the model
-        # OpenRouter model names usually look like: google/gemma-2-9b-it
-        # You can pick any model from openrouter.ai/models
-        model_name = "openrouter/free" 
+        # Using a good Gemma model available on OpenRouter
+        model_name = "google/gemma-2-9b-it" 
 
         try:
-            # 3. Prepare Environment
             run_env = os.environ.copy()
             run_env["OPENROUTER_API_KEY"] = api_key
 
-            # 4. Run ZeroClaw with OpenRouter provider
             result = subprocess.run(
                 [
                     "zeroclaw", "agent", 
-                    "-p", "openrouter",      # Use openrouter provider
+                    "-p", "openrouter", 
                     "--model", model_name, 
                     "-m", clean_text
                 ],
@@ -53,11 +67,12 @@ async def slack_events(request: Request):
                 env=run_env
             )
 
-            if result.returncode != 0:
-                print(f"ZeroClaw Error: {result.stderr}")
-                reply = f"Error: {result.stderr.strip()}"
-            else:
-                reply = result.stdout.strip() or "No response."
+            # Combine stdout and stderr, then clean
+            raw_output = result.stdout.strip() + "\n" + result.stderr.strip()
+            reply = clean_zeroclaw_output(raw_output)
+
+            if not reply:
+                reply = "No response."
                 
         except Exception as e:
             print(f"Exception: {str(e)}")
